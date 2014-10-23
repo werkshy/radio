@@ -1,0 +1,6 @@
+_radio()
+{
+    local cur=${COMP_WORDS[COMP_CWORD]}
+    COMPREPLY=( $(compgen -W "$(radio list | xargs)" -- $cur) )
+}
+complete -F _radio radio

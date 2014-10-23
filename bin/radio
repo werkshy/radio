@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# Usage:
+#	radio [RADIO]
+# 	radio list
+
+CONFIG=$HOME/.radio
+
+if [ ! -e $CONFIG ]; then
+	echo "Create a config at $CONFIG"
+	exit 2
+fi
+
+
+function list_radios() {
+	grep -v "^#\|^$" $CONFIG | awk -F ':' '{print $1}' | sort
+}
+
+function find_radio_url() {
+	url=$(grep -v "^#" $CONFIG | grep $1 | cut -d ':' -f 2- | tr -d '\t ')
+	echo $url
+}
+
+function play_radio() {
+	echo "Playing $1"
+	url=$(find_radio_url $1)
+	if [ "$url" == "" ]; then
+		echo "No URL found"
+		exit 1
+	fi
+	mpc clear
+	if [[ $url == *.pls* ]]; then
+		mpc load "$url"
+	else
+		mpc add "$url"
+	fi
+	mpc play
+}
+
+if [ "$1" == "list" ] || [ "$1" == "" ]; then
+	list_radios
+elif [ "$1" == "stop" ]; then
+	mpc stop
+else
+	play_radio $1
+fi
