@@ -21,7 +21,7 @@ function find_radio_url() {
 	echo $url
 }
 
-function play_radio() {
+function play_radio_mpc() {
 	echo "Playing $1"
 	url=$(find_radio_url $1)
 	if [ "$url" == "" ]; then
@@ -37,10 +37,35 @@ function play_radio() {
 	mpc play
 }
 
+function play_radio_mplayer() {
+	echo "Playing $1"
+	url=$(find_radio_url $1)
+	mplayer -cache-min 0 -playlist "$url"
+}
+
+function has_mplayer() {
+	which mplayer > /dev/null
+	return $?
+}
+
+# Figure out best method of playing and use it
+# Logic: if MPD_HOST is set, use 'mpc'
+#        otherwise use mplayer if it exists,
+#        otherwise try mpc (last ditch attempt)
+function play_best() {
+	if [ "$MPD_HOST" != "" ]; then
+		play_radio_mpc $1
+	elif has_mplayer; then
+		play_radio_mplayer $1
+	else
+		play_radio_mpc $1
+	fi
+}
+
 if [ "$1" == "list" ] || [ "$1" == "" ]; then
 	list_radios
 elif [ "$1" == "stop" ]; then
 	mpc stop
 else
-	play_radio $1
+	play_best $1
 fi
