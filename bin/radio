@@ -6,23 +6,48 @@
 
 CONFIG=$HOME/.radio
 
+
 if [ ! -e $CONFIG ]; then
 	echo "Create a config at $CONFIG"
 	exit 2
 fi
 
-
 function list_radios() {
 	grep -v "^#\|^$" $CONFIG | awk -F ':' '{print $1}' | sort
 }
+
+
+# Handle the non-playback commands before autodetecting playback
+if [ "$1" == "list" ] || [ "$1" == "" ]; then
+	list_radios
+	exit
+fi
+
+# Use mpc/mpd by default, but pickup chromecast if CAST_DEVICE env var is set
+function has_mplayer() {
+	which mplayer > /dev/null
+	return $?
+}
+if [ "$CAST_DEVICE" != "" ]; then
+	method="cast"
+elif [ "$MPD_HOST" != "" ]; then
+	method="mpc"
+elif has_mplayer; then
+	method="mplayer"
+else
+	method="mpc" # fallback
+fi
+
 
 function find_radio_url() {
 	url=$(grep -v "^#" $CONFIG | grep $1 | cut -d ':' -f 2- | tr -d '\t ')
 	echo $url
 }
 
-function play_radio_mpc() {
-	echo "Playing $1"
+#####################################################
+## MPD METHODS
+#####################################################
+function mpc_play() {
 	url=$(find_radio_url $1)
 	if [ "$url" == "" ]; then
 		echo "No URL found"
@@ -37,35 +62,51 @@ function play_radio_mpc() {
 	mpc play
 }
 
-function play_radio_mplayer() {
-	echo "Playing $1"
+function mpc_stop() {
+	mpc stop
+}
+
+#####################################################
+## MPLAYER METHODS
+#####################################################
+function mplayer_play() {
 	url=$(find_radio_url $1)
 	mplayer -cache-min 0 -playlist "$url"
 }
 
-function has_mplayer() {
-	which mplayer > /dev/null
-	return $?
+function mplayer_stop() {
+	killall mplayer
 }
 
-# Figure out best method of playing and use it
-# Logic: if MPD_HOST is set, use 'mpc'
-#        otherwise use mplayer if it exists,
-#        otherwise try mpc (last ditch attempt)
-function play_best() {
-	if [ "$MPD_HOST" != "" ]; then
-		play_radio_mpc $1
-	elif has_mplayer; then
-		play_radio_mplayer $1
+#####################################################
+## CASTNOW METHODS (For Chromecast)
+#####################################################
+CASTNOW="$HOME/node_modules/.bin/castnow --device ${CAST_DEVICE}"
+function cast_play() {
+	url=$(find_radio_url $1)
+	if [ "$url" == "" ]; then
+		echo "No URL found"
+		exit 1
+	fi
+	if [[ $url == *.pls* ]]; then
+		echo "Playlist: $url"
+		first_url=$(curl -s http://schizoid.in/schizoid-prog.pls | grep ^File1 | awk -F '=' '{print $2}')
+		echo "Found URL: $first_url"
+		${CASTNOW} --type=audio/mp3 "$first_url"
 	else
-		play_radio_mpc $1
+		echo "Stream: $url"
+		$CASTNOW --type=audio/mp3 "$url"
 	fi
 }
 
-if [ "$1" == "list" ] || [ "$1" == "" ]; then
-	list_radios
-elif [ "$1" == "stop" ]; then
-	mpc stop
+function cast_stop() {
+	echo "Press s in the castnow terminal to stop"
+	$CASTNOW
+}
+
+if [ "$1" == "stop" ]; then
+	"${method}_stop"
 else
-	play_best $1
+	echo "Playing $1 via $method"
+	"${method}_play" $1
 fi
