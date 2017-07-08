@@ -2,7 +2,7 @@
 
 # Usage:
 #	radio [RADIO]
-# 	radio list
+#	radio list
 
 CONFIG=$HOME/.radio
 
@@ -23,15 +23,23 @@ if [ "$1" == "list" ] || [ "$1" == "" ]; then
 	exit
 fi
 
-# Use mpc/mpd by default, but pickup chromecast if CAST_DEVICE env var is set
+function has_cvlc() {
+	which cvlc > /dev/null
+	return $?
+}
+
 function has_mplayer() {
 	which mplayer > /dev/null
 	return $?
 }
+
+# Use mpc/mpd by default, but pickup chromecast if CAST_DEVICE env var is set
 if [ "$CAST_DEVICE" != "" ]; then
 	method="cast"
 elif [ "$MPD_HOST" != "" ]; then
 	method="mpc"
+elif has_cvlc; then
+	method="cvlc"
 elif has_mplayer; then
 	method="mplayer"
 else
@@ -79,6 +87,18 @@ function mplayer_stop() {
 }
 
 #####################################################
+## VLC METHODS
+#####################################################
+function cvlc_play() {
+	url=$(find_radio_url $1)
+	cvlc "$url"
+}
+
+function cvlc_stop() {
+	killall vlc
+}
+
+#####################################################
 ## CASTNOW METHODS (For Chromecast)
 #####################################################
 CASTNOW="$HOME/node_modules/.bin/castnow --device ${CAST_DEVICE}"
@@ -98,6 +118,7 @@ function cast_play() {
 		$CASTNOW --type=audio/mp3 "$url"
 	fi
 }
+
 
 function cast_stop() {
 	echo "Press s in the castnow terminal to stop"
